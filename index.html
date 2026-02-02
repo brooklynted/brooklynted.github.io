@@ -1,9 +1,950 @@
-<html>
- 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galactic Calendar</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a12;
+            --bg-secondary: #12121f;
+            --accent-cyan: #5de4ee;
+            --accent-gold: #f4d03f;
+            --sun-amber: #ffb347;
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a0;
+            --text-muted: #555570;
+            --orbit-color: rgba(93, 228, 238, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Star field background */
+        .starfield {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .title {
+            font-size: 1.2rem;
+            font-weight: 300;
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            letter-spacing: 0.2em;
+        }
+
+        /* Mode Toggle */
+        .mode-toggle {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .mode-toggle label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            padding: 0.4rem 0.8rem;
+            border: 1px solid var(--text-muted);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .mode-toggle input {
+            display: none;
+        }
+
+        .mode-toggle input:checked + label {
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+
+        /* Digital Counter */
+        .counter-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .counter-main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .counter-row {
+            display: flex;
+            align-items: baseline;
+            gap: 2rem;
+        }
+
+        .counter-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .counter-label {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 0.3rem;
+        }
+
+        .counter-value {
+            font-size: 2.5rem;
+            font-weight: 200;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.05em;
+        }
+
+        .counter-value.large {
+            font-size: 3.5rem;
+        }
+
+        .counter-value .unit {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-left: 0.3rem;
+        }
+
+        .counter-value .fraction {
+            color: var(--accent-cyan);
+        }
+
+        .g-time {
+            font-size: 1.8rem;
+            color: var(--accent-cyan);
+            font-weight: 300;
+            letter-spacing: 0.1em;
+        }
+
+        /* Secondary info */
+        .secondary-info {
+            margin-top: 1.5rem;
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .secondary-info p {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            line-height: 1.8;
+        }
+
+        .secondary-info .highlight {
+            color: var(--text-secondary);
+        }
+
+        /* Galaxy Visualization */
+        .galaxy-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .galaxy-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1;
+            max-width: 500px;
+        }
+
+        #galaxyCanvas {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        #galaxyCanvas:active {
+            cursor: grabbing;
+        }
+
+        /* Time Scrubber */
+        .scrubber-section {
+            width: 100%;
+            max-width: 500px;
+            margin-top: 1.5rem;
+        }
+
+        .scrubber-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.1em;
+        }
+
+        .scrubber {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 2px;
+            background: linear-gradient(to right,
+                var(--accent-cyan) 0%,
+                var(--accent-cyan) var(--progress, 73%),
+                var(--text-muted) var(--progress, 73%),
+                var(--text-muted) 100%);
+            border-radius: 1px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .scrubber::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--sun-amber);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--sun-amber), 0 0 20px rgba(255, 179, 71, 0.3);
+            transition: transform 0.15s ease;
+        }
+
+        .scrubber::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .scrubber::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: var(--sun-amber);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--sun-amber), 0 0 20px rgba(255, 179, 71, 0.3);
+        }
+
+        .now-button {
+            display: block;
+            margin: 1rem auto 0;
+            padding: 0.5rem 1.5rem;
+            font-size: 0.65rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--text-muted);
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .now-button:hover {
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+
+        .now-button.active {
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+
+        /* Info Cards */
+        .info-card {
+            position: absolute;
+            background: rgba(10, 10, 18, 0.95);
+            border: 1px solid rgba(93, 228, 238, 0.3);
+            border-radius: 4px;
+            padding: 0.8rem 1rem;
+            max-width: 200px;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.2s ease;
+            z-index: 100;
+        }
+
+        .info-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .info-card h4 {
+            font-size: 0.7rem;
+            color: var(--accent-cyan);
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.1em;
+        }
+
+        .info-card p {
+            font-size: 0.6rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Poetic Mode Labels */
+        .poetic-labels {
+            display: none;
+        }
+
+        body.poetic-mode .scientific-labels {
+            display: none;
+        }
+
+        body.poetic-mode .poetic-labels {
+            display: block;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 2rem;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .footer p {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+        }
+
+        .config-info {
+            margin-top: 0.5rem;
+            font-size: 0.55rem;
+            color: var(--text-muted);
+            opacity: 0.6;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .counter-value {
+                font-size: 1.8rem;
+            }
+
+            .counter-value.large {
+                font-size: 2.5rem;
+            }
+
+            .counter-row {
+                gap: 1rem;
+            }
+
+            .mode-toggle {
+                position: static;
+                margin-bottom: 1rem;
+            }
+
+            .g-time {
+                font-size: 1.4rem;
+            }
+        }
+    </style>
+</head>
 <body>
-  <h1>YOUR NAME</h1>
-  <p>Welcome to my website!</p>
-  <img src="https://content.codecademy.com/articles/github-pages-via-web-app/happy-ice-cream.gif" />
+    <!-- Star field -->
+    <canvas class="starfield" id="starfield"></canvas>
+
+    <div class="container">
+        <!-- Mode Toggle -->
+        <div class="mode-toggle">
+            <input type="radio" name="mode" id="scientific" checked>
+            <label for="scientific">Scientific</label>
+            <input type="radio" name="mode" id="poetic">
+            <label for="poetic">Poetic</label>
+        </div>
+
+        <!-- Header -->
+        <header class="header">
+            <h1 class="title">Galactic Calendar</h1>
+            <p class="subtitle">A Cosmocene Instrument</p>
+        </header>
+
+        <!-- Digital Counter -->
+        <section class="counter-section">
+            <div class="counter-main">
+                <div class="counter-row">
+                    <div class="counter-block">
+                        <span class="counter-label scientific-labels">G-Year</span>
+                        <span class="counter-label poetic-labels">Cycle</span>
+                        <span class="counter-value large">
+                            <span class="unit">GY</span>
+                            <span class="fraction" id="gYear">0.730000</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="counter-row">
+                    <div class="counter-block">
+                        <span class="counter-label scientific-labels">G-Day</span>
+                        <span class="counter-label poetic-labels">Pulse</span>
+                        <span class="counter-value" id="gDay">267 / 365</span>
+                    </div>
+                    <div class="counter-block">
+                        <span class="counter-label scientific-labels">G-Time</span>
+                        <span class="counter-label poetic-labels">Drift</span>
+                        <span class="g-time" id="gTime">14:32:07</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="secondary-info">
+                <p class="scientific-labels">
+                    <span class="highlight">1 G-second ≈ <span id="gSecondEquiv">7.30</span> Earth years</span><br>
+                    <span id="earthYearsIntoOrbit">~168,000,000</span> Earth years into current orbit
+                </p>
+                <p class="poetic-labels">
+                    Each tick carries <span class="highlight" id="gSecondEquivPoetic">7.30</span> Earth years<br>
+                    <span id="earthYearsIntoOrbitPoetic">168 million</span> years traveled
+                </p>
+            </div>
+        </section>
+
+        <!-- Galaxy Visualization -->
+        <section class="galaxy-section">
+            <div class="galaxy-container">
+                <canvas id="galaxyCanvas"></canvas>
+                <div class="info-card" id="infoCard">
+                    <h4 id="infoTitle">Galactic Center</h4>
+                    <p id="infoText">The supermassive black hole Sagittarius A* resides here.</p>
+                </div>
+            </div>
+
+            <!-- Time Scrubber -->
+            <div class="scrubber-section">
+                <div class="scrubber-label">
+                    <span>Orbit Start</span>
+                    <span>One Galactic Year</span>
+                </div>
+                <input type="range" class="scrubber" id="timeScrubber" min="0" max="1" step="0.000001" value="0.73">
+                <button class="now-button active" id="nowButton">● Live</button>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Situating the present moment within the Sun's 230-million-year orbit</p>
+            <p class="config-info">Galactic Year = <span id="configGYear">230,000,000</span> Earth years</p>
+        </footer>
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const CONFIG = {
+            GALACTIC_YEAR_EARTH_YEARS: 230_000_000,
+            G_DAYS_PER_YEAR: 365,
+            G_HOURS_PER_DAY: 24,
+            G_MINUTES_PER_HOUR: 60,
+            G_SECONDS_PER_MINUTE: 60,
+
+            // Reference point: Define where we are "now" in the galactic orbit
+            // This is symbolic - the actual position is not precisely known
+            REFERENCE_EPOCH: Date.UTC(2024, 0, 1, 0, 0, 0), // Jan 1, 2024
+            REFERENCE_G_YEAR_FRACTION: 0.73, // ~168M years into orbit
+
+            // Sun's orbital velocity around galactic center (km/s)
+            SOLAR_ORBITAL_VELOCITY: 230
+        };
+
+        // Derived constants
+        const EARTH_YEARS_PER_G_DAY = CONFIG.GALACTIC_YEAR_EARTH_YEARS / CONFIG.G_DAYS_PER_YEAR;
+        const G_SECONDS_PER_DAY = CONFIG.G_HOURS_PER_DAY * CONFIG.G_MINUTES_PER_HOUR * CONFIG.G_SECONDS_PER_MINUTE;
+        const EARTH_YEARS_PER_G_SECOND = EARTH_YEARS_PER_G_DAY / G_SECONDS_PER_DAY;
+        const MS_PER_EARTH_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+        const MS_PER_G_SECOND = EARTH_YEARS_PER_G_SECOND * MS_PER_EARTH_YEAR;
+
+        // ============================================
+        // STATE
+        // ============================================
+        let state = {
+            isLive: true,
+            currentFraction: CONFIG.REFERENCE_G_YEAR_FRACTION,
+            isDragging: false,
+            galaxyRotation: 0,
+            galaxyZoom: 1,
+            hoveredRegion: null
+        };
+
+        // ============================================
+        // DOM ELEMENTS
+        // ============================================
+        const elements = {
+            gYear: document.getElementById('gYear'),
+            gDay: document.getElementById('gDay'),
+            gTime: document.getElementById('gTime'),
+            gSecondEquiv: document.getElementById('gSecondEquiv'),
+            gSecondEquivPoetic: document.getElementById('gSecondEquivPoetic'),
+            earthYearsIntoOrbit: document.getElementById('earthYearsIntoOrbit'),
+            earthYearsIntoOrbitPoetic: document.getElementById('earthYearsIntoOrbitPoetic'),
+            timeScrubber: document.getElementById('timeScrubber'),
+            nowButton: document.getElementById('nowButton'),
+            galaxyCanvas: document.getElementById('galaxyCanvas'),
+            starfield: document.getElementById('starfield'),
+            infoCard: document.getElementById('infoCard'),
+            infoTitle: document.getElementById('infoTitle'),
+            infoText: document.getElementById('infoText'),
+            scientificMode: document.getElementById('scientific'),
+            poeticMode: document.getElementById('poetic'),
+            configGYear: document.getElementById('configGYear')
+        };
+
+        // ============================================
+        // GALACTIC TIME CALCULATIONS
+        // ============================================
+        function calculateGalacticTime(fraction) {
+            // G-Year is just the fraction
+            const gYear = fraction;
+
+            // G-Day: which day of the galactic year (0-364)
+            const totalGDays = fraction * CONFIG.G_DAYS_PER_YEAR;
+            const gDayNumber = Math.floor(totalGDays) % CONFIG.G_DAYS_PER_YEAR;
+            const gDayFraction = totalGDays - Math.floor(totalGDays);
+
+            // G-Time: HH:MM:SS within the current G-Day
+            const totalGSeconds = gDayFraction * G_SECONDS_PER_DAY;
+            const gHours = Math.floor(totalGSeconds / (CONFIG.G_MINUTES_PER_HOUR * CONFIG.G_SECONDS_PER_MINUTE));
+            const gMinutes = Math.floor((totalGSeconds % (CONFIG.G_MINUTES_PER_HOUR * CONFIG.G_SECONDS_PER_MINUTE)) / CONFIG.G_SECONDS_PER_MINUTE);
+            const gSeconds = Math.floor(totalGSeconds % CONFIG.G_SECONDS_PER_MINUTE);
+
+            // Earth years into orbit
+            const earthYearsIntoOrbit = fraction * CONFIG.GALACTIC_YEAR_EARTH_YEARS;
+
+            return {
+                gYear,
+                gDayNumber: gDayNumber + 1, // 1-indexed for display
+                gHours,
+                gMinutes,
+                gSeconds,
+                earthYearsIntoOrbit
+            };
+        }
+
+        function getCurrentFraction() {
+            const now = Date.now();
+            const msSinceReference = now - CONFIG.REFERENCE_EPOCH;
+            const gSecondsSinceReference = msSinceReference / MS_PER_G_SECOND;
+            const fractionChange = gSecondsSinceReference / (CONFIG.G_DAYS_PER_YEAR * G_SECONDS_PER_DAY);
+
+            let fraction = CONFIG.REFERENCE_G_YEAR_FRACTION + fractionChange;
+            // Keep within 0-1 range (wrap around)
+            fraction = fraction % 1;
+            if (fraction < 0) fraction += 1;
+
+            return fraction;
+        }
+
+        // ============================================
+        // UI UPDATE FUNCTIONS
+        // ============================================
+        function updateDisplay(fraction) {
+            const time = calculateGalacticTime(fraction);
+
+            // Update G-Year
+            elements.gYear.textContent = time.gYear.toFixed(6);
+
+            // Update G-Day
+            elements.gDay.textContent = `${time.gDayNumber} / ${CONFIG.G_DAYS_PER_YEAR}`;
+
+            // Update G-Time
+            const hours = String(time.gHours).padStart(2, '0');
+            const minutes = String(time.gMinutes).padStart(2, '0');
+            const seconds = String(time.gSeconds).padStart(2, '0');
+            elements.gTime.textContent = `${hours}:${minutes}:${seconds}`;
+
+            // Update secondary info
+            const earthYearsFormatted = Math.round(time.earthYearsIntoOrbit).toLocaleString();
+            elements.earthYearsIntoOrbit.textContent = `~${earthYearsFormatted}`;
+
+            // Poetic version (simplified)
+            const millions = Math.round(time.earthYearsIntoOrbit / 1_000_000);
+            elements.earthYearsIntoOrbitPoetic.textContent = `${millions} million`;
+
+            // Update scrubber position and style
+            elements.timeScrubber.value = fraction;
+            elements.timeScrubber.style.setProperty('--progress', `${fraction * 100}%`);
+        }
+
+        function updateStaticInfo() {
+            // G-second equivalent
+            const gSecEquiv = EARTH_YEARS_PER_G_SECOND.toFixed(2);
+            elements.gSecondEquiv.textContent = gSecEquiv;
+            elements.gSecondEquivPoetic.textContent = gSecEquiv;
+
+            // Config display
+            elements.configGYear.textContent = CONFIG.GALACTIC_YEAR_EARTH_YEARS.toLocaleString();
+        }
+
+        // ============================================
+        // STARFIELD BACKGROUND
+        // ============================================
+        function initStarfield() {
+            const canvas = elements.starfield;
+            const ctx = canvas.getContext('2d');
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+
+            resize();
+            window.addEventListener('resize', resize);
+
+            const stars = [];
+            const numStars = 200;
+
+            for (let i = 0; i < numStars; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 1.5 + 0.5,
+                    opacity: Math.random() * 0.5 + 0.2,
+                    twinkleSpeed: Math.random() * 0.02 + 0.005
+                });
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const time = Date.now() * 0.001;
+
+                stars.forEach(star => {
+                    const twinkle = Math.sin(time * star.twinkleSpeed * 10) * 0.3 + 0.7;
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity * twinkle})`;
+                    ctx.fill();
+                });
+
+                requestAnimationFrame(animate);
+            }
+
+            animate();
+        }
+
+        // ============================================
+        // GALAXY VISUALIZATION
+        // ============================================
+        function initGalaxy() {
+            const canvas = elements.galaxyCanvas;
+            const ctx = canvas.getContext('2d');
+
+            // High DPI support
+            function resize() {
+                const rect = canvas.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+                ctx.scale(dpr, dpr);
+            }
+
+            resize();
+            window.addEventListener('resize', resize);
+
+            // Galaxy regions for info cards
+            const regions = [
+                {
+                    name: 'Galactic Center',
+                    x: 0.5, y: 0.5, radius: 0.08,
+                    info: 'Home to Sagittarius A*, a supermassive black hole with ~4 million solar masses.'
+                },
+                {
+                    name: 'Sun / Solar System',
+                    x: 0, y: 0, radius: 0.03, // Position calculated dynamically
+                    info: 'Our home, ~26,000 light-years from the galactic center in the Orion Spur.',
+                    isSun: true
+                },
+                {
+                    name: 'Orion Spur',
+                    x: 0.72, y: 0.45, radius: 0.1,
+                    info: 'A minor spiral arm where our Solar System resides, between Perseus and Sagittarius arms.'
+                }
+            ];
+
+            function drawGalaxy(fraction) {
+                const rect = canvas.getBoundingClientRect();
+                const width = rect.width;
+                const height = rect.height;
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const maxRadius = Math.min(width, height) * 0.42;
+
+                ctx.clearRect(0, 0, width, height);
+
+                // Draw spiral arms
+                drawSpiralArms(ctx, centerX, centerY, maxRadius);
+
+                // Draw galactic center glow
+                const centerGradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, maxRadius * 0.2);
+                centerGradient.addColorStop(0, 'rgba(255, 250, 220, 0.4)');
+                centerGradient.addColorStop(0.3, 'rgba(255, 200, 150, 0.2)');
+                centerGradient.addColorStop(1, 'rgba(255, 200, 150, 0)');
+                ctx.fillStyle = centerGradient;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, maxRadius * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw Sun's orbit path
+                const orbitRadius = maxRadius * 0.6;
+                ctx.strokeStyle = 'rgba(93, 228, 238, 0.15)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, orbitRadius, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Draw traveled path (from 0 to current fraction)
+                const startAngle = -Math.PI / 2; // Start from top
+                const currentAngle = startAngle + (fraction * Math.PI * 2);
+
+                ctx.strokeStyle = 'rgba(93, 228, 238, 0.4)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, orbitRadius, startAngle, currentAngle);
+                ctx.stroke();
+
+                // Draw Sun position
+                const sunX = centerX + Math.cos(currentAngle) * orbitRadius;
+                const sunY = centerY + Math.sin(currentAngle) * orbitRadius;
+
+                // Sun glow
+                const sunGradient = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 20);
+                sunGradient.addColorStop(0, 'rgba(255, 179, 71, 0.8)');
+                sunGradient.addColorStop(0.5, 'rgba(255, 179, 71, 0.3)');
+                sunGradient.addColorStop(1, 'rgba(255, 179, 71, 0)');
+                ctx.fillStyle = sunGradient;
+                ctx.beginPath();
+                ctx.arc(sunX, sunY, 20, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Sun core
+                ctx.fillStyle = '#ffb347';
+                ctx.beginPath();
+                ctx.arc(sunX, sunY, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Sun label
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.font = '10px SF Mono, Consolas, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('☉ Sun', sunX, sunY - 15);
+
+                // Update sun region position
+                regions[1].x = sunX / width;
+                regions[1].y = sunY / height;
+            }
+
+            function drawSpiralArms(ctx, cx, cy, maxRadius) {
+                const numArms = 4;
+                const armWidth = maxRadius * 0.15;
+
+                for (let arm = 0; arm < numArms; arm++) {
+                    const armOffset = (arm / numArms) * Math.PI * 2;
+
+                    ctx.beginPath();
+
+                    for (let i = 0; i <= 100; i++) {
+                        const t = i / 100;
+                        const r = maxRadius * 0.15 + (maxRadius * 0.85) * t;
+                        const theta = armOffset + t * Math.PI * 2.5;
+
+                        const x = cx + Math.cos(theta) * r;
+                        const y = cy + Math.sin(theta) * r;
+
+                        if (i === 0) {
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+
+                    ctx.strokeStyle = `rgba(100, 120, 180, ${0.15 - arm * 0.02})`;
+                    ctx.lineWidth = armWidth * (1 - arm * 0.1);
+                    ctx.lineCap = 'round';
+                    ctx.stroke();
+                }
+
+                // Add some star clusters along arms
+                for (let i = 0; i < 150; i++) {
+                    const arm = Math.floor(Math.random() * numArms);
+                    const armOffset = (arm / numArms) * Math.PI * 2;
+                    const t = Math.random();
+                    const r = maxRadius * 0.15 + (maxRadius * 0.85) * t + (Math.random() - 0.5) * armWidth;
+                    const theta = armOffset + t * Math.PI * 2.5 + (Math.random() - 0.5) * 0.3;
+
+                    const x = cx + Math.cos(theta) * r;
+                    const y = cy + Math.sin(theta) * r;
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, Math.random() * 1.5 + 0.5, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(200, 210, 255, ${Math.random() * 0.4 + 0.1})`;
+                    ctx.fill();
+                }
+            }
+
+            // Mouse interaction for info cards
+            canvas.addEventListener('mousemove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const nx = x / rect.width;
+                const ny = y / rect.height;
+
+                let hoveredRegion = null;
+
+                for (const region of regions) {
+                    const dx = nx - region.x;
+                    const dy = ny - region.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < region.radius) {
+                        hoveredRegion = region;
+                        break;
+                    }
+                }
+
+                if (hoveredRegion) {
+                    elements.infoTitle.textContent = hoveredRegion.name;
+                    elements.infoText.textContent = hoveredRegion.info;
+                    elements.infoCard.classList.add('visible');
+                    elements.infoCard.style.left = `${e.clientX - rect.left + 15}px`;
+                    elements.infoCard.style.top = `${e.clientY - rect.top - 10}px`;
+                } else {
+                    elements.infoCard.classList.remove('visible');
+                }
+            });
+
+            canvas.addEventListener('mouseleave', () => {
+                elements.infoCard.classList.remove('visible');
+            });
+
+            return { draw: drawGalaxy };
+        }
+
+        // ============================================
+        // EVENT HANDLERS
+        // ============================================
+        function setupEventHandlers(galaxy) {
+            // Time scrubber
+            elements.timeScrubber.addEventListener('input', (e) => {
+                state.isLive = false;
+                state.currentFraction = parseFloat(e.target.value);
+                elements.nowButton.classList.remove('active');
+                elements.nowButton.textContent = '○ Live';
+                updateDisplay(state.currentFraction);
+                galaxy.draw(state.currentFraction);
+            });
+
+            // Now button
+            elements.nowButton.addEventListener('click', () => {
+                state.isLive = true;
+                elements.nowButton.classList.add('active');
+                elements.nowButton.textContent = '● Live';
+            });
+
+            // Mode toggle
+            elements.poeticMode.addEventListener('change', () => {
+                if (elements.poeticMode.checked) {
+                    document.body.classList.add('poetic-mode');
+                }
+            });
+
+            elements.scientificMode.addEventListener('change', () => {
+                if (elements.scientificMode.checked) {
+                    document.body.classList.remove('poetic-mode');
+                }
+            });
+        }
+
+        // ============================================
+        // MAIN ANIMATION LOOP
+        // ============================================
+        function startAnimationLoop(galaxy) {
+            function tick() {
+                if (state.isLive) {
+                    state.currentFraction = getCurrentFraction();
+                    updateDisplay(state.currentFraction);
+                }
+
+                galaxy.draw(state.currentFraction);
+                requestAnimationFrame(tick);
+            }
+
+            tick();
+        }
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        function init() {
+            updateStaticInfo();
+            initStarfield();
+            const galaxy = initGalaxy();
+            setupEventHandlers(galaxy);
+            startAnimationLoop(galaxy);
+
+            // Initial state
+            state.currentFraction = getCurrentFraction();
+            updateDisplay(state.currentFraction);
+        }
+
+        // Start when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
 </body>
- 
 </html>
